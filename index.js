@@ -53,7 +53,6 @@ app.post('/delete', async (req, res) => {
 
 );
 
-// JSON API endpoints your React app expects
 app.get('/api/tasks', async (req, res) => {
   try {
     const q = req.query.search;
