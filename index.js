@@ -1,75 +1,111 @@
-// index.js 
-const express = require("express");
-const bodyParser = require("body-parser");
-const ejs = require("ejs");
-const mongoose = require("mongoose");
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const path = require('path');
 
 const app = express();
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static("public"));
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+app.set('view engine', 'ejs');
 
-mongoose.connect(
-  
-  "mongodb+srv://cocogoat_28:W1oUA8O0hvkovBDc@cluster0.wxeddfi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+mongoose.connect(process.env.MONGO_URI || '', { useNewUrlParser: true, useUnifiedTopology: true });
+
+const taskSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  completed: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Task = mongoose.model('Task', taskSchema);
+
+app.get('/', async (req, res) => {
+  try {
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+    const tasks = await Task.find({}).sort({ createdAt: -1 });
+    res.render('index', { today, tasks });
+  } catch (e) {
+    res.status(500).send('Server error');
+  }
+});
+
+app.post('/', async (req, res) => {
+  try {
+    const name = req.body.newTask;
+    if (name && name.trim()) await Task.create({ name: name.trim() });
+    res.redirect('/');
+  } catch (e) {
+    res.status(500).send('Could not save');
+  }
+});
+
+app.post('/delete', async (req, res) => {
+  try {
+    const id = req.body.checkbox;
+    if (id) await Task.findByIdAndDelete(id);
+    res.redirect('/');
+  } catch (e) {
+    res.status(500).send('Could not delete');
+  }
+}
+
 );
 
-
-const taskSchema = {
-  name: {
-    type: String,
-    required: true
-  }
-};
-
-const Task = mongoose.model("Task", taskSchema);
-
-app.set("view engine", "ejs");
-
-// GET route
-app.get("/", async (req, res) => {
+// JSON API endpoints your React app expects
+app.get('/api/tasks', async (req, res) => {
   try {
-    let today = new Date();
-    let options = { weekday: "long", day: "numeric", month: "long" };
-    let day = today.toLocaleDateString("en-US", options);
-
-    const foundTasks = await Task.find({});
-    res.render("index", { today: day, tasks: foundTasks });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Server Error");
+    const q = req.query.search;
+    const filter = q ? { name: new RegExp(q, 'i') } : {};
+    const docs = await Task.find(filter).sort({ createdAt: -1 });
+    res.json(docs);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch tasks' });
   }
 });
 
-// POST route for adding task
-app.post("/", async (req, res) => {
-  const taskName = req.body.newTask;
-  if (taskName) {
-    const task = new Task({ name: taskName });
-    try {
-      await task.save();
-      res.redirect("/");
-    } catch (err) {
-      console.error(err);
-      res.status(500).send("Could not save task");
-    }
-  } else {
-    res.redirect("/");
-  }
-});
-
-// POST route for deleting task
-app.post("/delete", async (req, res) => {
-  const checkedItemId = req.body.checkbox;
+app.post('/api/tasks', async (req, res) => {
   try {
-    await Task.findByIdAndDelete(checkedItemId);
-    console.log("Successfully deleted checked item.");
-    res.redirect("/");
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Could not delete task");
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
+    const created = await Task.create({ name: name.trim() });
+    res.status(201).json(created);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not create task' });
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Server running at port 3000");
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const updated = await Task.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not update task' });
+  }
 });
+
+app.patch('/api/tasks/:id/status', async (req, res) => {
+  try {
+    const { completed } = req.body;
+    const updated = await Task.findByIdAndUpdate(req.params.id, { completed }, { new: true });
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not update status' });
+  }
+});
+
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const removed = await Task.findByIdAndDelete(req.params.id);
+    if (!removed) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not delete' });
+  }
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server running on ${port}`));
