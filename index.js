@@ -1,6 +1,4 @@
-// Simple Task Manager App using Express + MongoDB + EJS
-// Built just for testing and learning 
-
+//TO-DO APP
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,14 +7,14 @@ const path = require('path');
 
 const app = express();
 
-// --- Middleware setup ---
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 
-// --- Mongo Connection ---
+// Mongo Connection
 mongoose.connect(process.env.MONGO_URI || '', { 
   useNewUrlParser: true, 
   useUnifiedTopology: true 
@@ -24,7 +22,7 @@ mongoose.connect(process.env.MONGO_URI || '', {
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => console.log('Mongo connection error:', err.message));
 
-// --- Schema & Model ---
+
 const taskSchema = new mongoose.Schema({
   name: { type: String, required: true },
   completed: { type: Boolean, default: false },
@@ -33,7 +31,7 @@ const taskSchema = new mongoose.Schema({
 
 const Task = mongoose.model('Task', taskSchema);
 
-// --- Routes --- //
+// Routes 
 
 // Home route 
 app.get('/', async (req, res) => {
@@ -146,7 +144,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// --- Start Server ---
+// Start Server 
 const port = process.env.PORT || 3000;
 
 app.listen(port, () => {
